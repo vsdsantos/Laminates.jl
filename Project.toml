@@ -1,0 +1,7 @@
+name = "Laminates"
+uuid = "d34275fe-b197-4055-ae29-38a1df60f78b"
+authors = ["zuckberj <me@zuckberj.page>"]
+version = "0.1.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
