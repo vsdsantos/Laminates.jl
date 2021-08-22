@@ -1,60 +1,92 @@
 module Laminates
 
-using LinearAlgebra
+import Base: length
 
-struct OrthotropicMaterial
-	E1::Real
-	E2::Real
-	ν12::Real
-	G12::Real
-	Xt::Real
-	Yt::Real
-	Xc::Real
-	Yc::Real
-	S12::Real
-	
-	OrthotropicMaterial(E1, E2, nu12, G12) = new(E1, E2, nu12, G12)
-	OrthotropicMaterial(E1, E2, nu12, G12, Xt, Yt, Xc, Yc, S12) = new(E1, E2, nu12, G12, Xt, Yt, Xc, Yc, S12)
-end
-
-function Q12(mat::OrthotropicMaterial)
-	Q11 = mat.E1^2/(mat.E1-mat.ν12^2*mat.E2)
-	Q12 = mat.ν12*mat.E1*mat.E2/(mat.E1-mat.ν12^2*mat.E2)
-	Q22 = mat.E1*mat.E2/(mat.E1-mat.ν12^2*mat.E2)
-	Q66 = mat.G12
-	[Q11 Q12 0
-	 Q12 Q22 0
-	  0   0  Q66]
-end
-
-function S12(mat::OrthotropicMaterial)
-	S11 = 1/mat.E1
-	S12 = -mat.ν12/mat.E1
-	S22 = 1/mat.E2
-	S66 = 1/mat.G12
-	[S11 S12  0
-	 S12 S22  0
-	 0   0  S66]
-end
-
-struct Sheet
-	θ_i::Real
-	t_i::Real
-	material::OrthotropicMaterial
-end
-
-function Qxy(sh::Sheet)
-	Q_local = Q12(sh.material)
-	Tsig = Tσ(-sh.θ_i) # matriz de transformação inversa
-	Teps = Tϵ(sh.θ_i) # matriz de transformação inversa
-	Tsig * Q_local * Teps
-end
+include("materials.jl")
+include("sheet.jl")
 
 struct Laminate
-	sheets::Array{Sheet}
+	sheets::AbstractVector{<:Sheet}
+end
+
+function symetry_operations(vec::AbstractVector, sym::Symbol)
+	if sym == :S
+		return vcat(vec, reverse(vec))
+	elseif sym == :SM
+		return vcat(vec[1:end-1], [vec[end]], reverse(vec[1:end-1]))
+	elseif sym == :AS
+		return vcat(vec, vec)
+	elseif sym == :ASM
+		return vcat(vec[1:end-1], [vec[end]], vec[1:end-1])
+	else
+		return vec
+	end
+end
+
+function Laminate(θs::AbstractVector{<:Real}, ts::AbstractVector{<:Real}, mats::AbstractVector{<:OrthotropicMaterial}; sym = :no)
+	N = length(θs)
+	if length(ts) != N || length(mats) != N
+		error("Length of arrays are not the same.")
+	end
+	Laminate(symetry_operations([Sheet(θs[i], ts[i], mats[i]) for i in 1:N], sym))
+end
+
+function Laminate(θs::AbstractVector{<:Real}, t::Real, mats::AbstractVector{<:OrthotropicMaterial}; sym = :no)
+	N = length(θs)
+	if length(mats) != N
+		error("Length of arrays are not the same.")
+	end
+	Laminate(symetry_operations([Sheet(θs[i], t, mats[i]) for i in 1:N], sym))
+end
+
+function Laminate(θs::AbstractVector{<:Real}, ts::AbstractVector{<:Real}, mat::OrthotropicMaterial; sym = :no)
+	N = length(θs)
+	if length(ts) != N
+		error("Length of arrays are not the same.")
+	end
+	Laminate(symetry_operations([Sheet(θs[i], ts[i], mat) for i in 1:N], sym))
+end
+
+function Laminate(θs::AbstractVector{<:Real}, t::Real, mat::OrthotropicMaterial; sym = :no)
+	N = length(θs)
+	Laminate(symetry_operations([Sheet(θs[i], t, mat) for i in 1:N], sym))
+end
+
+function angle_ply(θ::Real, N::Integer, t::Real,  mat::OrthotropicMaterial)::Laminate
+	if N % 2 != 0
+		error("N should be even.")
+	end
+	thetas = Vector{Real}()
+	for i in 1:(N÷2)
+		if i % 2 == 0
+			push!(thetas, -θ)
+		else
+			push!(thetas, θ)
+		end
+	end
+	Laminate(thetas, t, mat, sym=:S)
+end
+
+function cross_ply(N::Integer, t::Real,  mat::OrthotropicMaterial)::Laminate
+	if N % 2 != 0
+		sym = :SM
+	else
+		sym = :S
+	end
+	thetas = Vector{Real}()
+	for i in 1:(N÷2)
+		if i % 2 == 0
+			push!(thetas, 90)
+		else
+			push!(thetas, 0)
+		end
+	end
+	Laminate(thetas, t, mat, sym=sym)
 end
 
 thickness(lam::Laminate) = sum([sh.t_i for sh in lam.sheets])
+
+length(lam::Laminate) = length(lam.sheets)
 
 function t_pos(lam::Laminate)
 	t = thickness(lam)
@@ -71,7 +103,7 @@ end
 function A(lam::Laminate)
 	t_k = t_pos(lam)
 	A = zeros(3,3)
-	for i in 1:length(lam.sheets)
+	for i in 1:length(lam)
 		sh = lam.sheets[i]
 		A += Qxy(sh) * (t_k[i+1]-t_k[i])
 	end
@@ -121,139 +153,8 @@ function equivalent_material(lam::Laminate)
 	OrthotropicMaterial(Ex, Ey, νxy, Gxy)
 end
 
-function global_deformations(lam::Laminate, load)
-	deform = ABD(lam) \ load
-	deform[1:3], deform[4:6]
-end
-
-function global_deformations_per_sheet(lam::Laminate, load)
-	ϵ, κ = global_deformations(lam, load)
-	t_k = t_pos(lam)
-	deforms = []
-	for i in 1:length(lam.sheets)
-		sh = lam.sheets[i]
-		push!(deforms, ϵ .+ (t_k[i]+sh.t_i/2) .*κ)
-	end
-	deforms
-end
-
-function global_tensions_per_sheet(lam::Laminate, load)
-	g_deforms = global_deformations_per_sheet(lam, load)
-	
-	tensions = []
-	
-	for i in 1:length(lam.sheets)
-		sh = lam.sheets[i]
-		push!(tensions, Qxy(sh) * g_deforms[i])
-	end
-	
-	tensions
-end
-
-function local_deformations(lam::Laminate, load)
-	g_deforms = global_deformations_per_sheet(lam, load)
-	
-	deforms = []
-	
-	for i in 1:length(lam.sheets)
-		sh = lam.sheets[i]
-		
-		push!(deforms, Tϵ(sh.θ_i) * g_deforms[i])
-	end
-	
-	deforms
-end
-
-function local_tensions(lam::Laminate, load)
-	g_tensions = global_tensions_per_sheet(lam, load)
-	
-	tensions = []
-	
-	for i in 1:length(lam.sheets)
-		sh = lam.sheets[i]
-		push!(tensions, Tσ(sh.θ_i) * g_tensions[i])
-	end
-	
-	tensions
-end
-
-function max_tensions_criteria(lam::Laminate, load)
-	tensions = local_tensions(lam, load)
-	
-	crit = []
-	
-	for i in 1:length(lam.sheets)
-		m = lam.sheets[i].material
-		σ = tensions[i]
-		push!(crit, [-m.Xc < σ[1] < m.Xt, -m.Yc < σ[2] < m.Yt, abs(σ[3]) < m.S12])
-	end
-	
-	crit
-end
-
-function max_strain_criteria(lam::Laminate, load)
-	strain = local_deformations(lam, load)
-	
-	crit = []
-	
-	for i in 1:length(lam.sheets)
-		m = lam.sheets[i].material
-		ϵ = strain[i]
-		push!(crit, [-m.Xc < ϵ[1] < m.Xt, -m.Yc < ϵ[2] < m.Yt, abs(ϵ[3]) < m.S12])
-	end
-	
-	crit
-end
-
-function tsai_hill_criteria(lam::Laminate, load)
-	tensions = local_tensions(lam, load)
-	
-	crit = []
-	
-	for i in 1:length(lam.sheets)
-		m = lam.sheets[i].material
-		σ = tensions[i]
-		σ1, σ2, σ3 = σ
-		if σ1 > 0 && σ2 > 0
-			FI = (σ1/m.Xt)^2 - (σ1/m.Xt)*(σ2/m.Xt) + (σ2/m.Yt)^2 + (σ3/m.S12)^2
-		elseif σ1 < 0 && σ2 > 0
-			FI = (σ1/m.Xc)^2 + (σ1/m.Xc)*(σ2/m.Xc) + (σ2/m.Yt)^2 + (σ3/m.S12)^2
-		elseif σ1 > 0 && σ2 < 0
-			FI = (σ1/m.Xt)^2 + (σ1/m.Xt)*(σ2/m.Xt) + (σ2/m.Yc)^2 + (σ3/m.S12)^2
-		else σ1 < 0 && σ2 < 0
-			FI = (σ1/m.Xc)^2 - (σ1/m.Xc)*(σ2/m.Xc) + (σ2/m.Yc)^2 + (σ3/m.S12)^2
-		end
-		push!(crit, FI)
-	end
-	
-	crit
-end
-
-function tsai_wu_criteria(lam::Laminate, load)
-	tensions = local_tensions(lam, load)
-	
-	crit = []
-	
-	for i in 1:length(lam.sheets)
-		m = lam.sheets[i].material
-		
-		F1 = 1/m.Xt - 1/m.Xc
-		F2 = 1/m.Yt - 1/m.Yc
-		F11 = 1 / (m.Xt * m.Xc)
-		F22 = 1 / (m.Yt * m.Yc)
-		F66 = 1 / (m.S12^2)
-		F12 = -sqrt(F11*F22)/2
-		
-		σ = tensions[i]
-		σ1, σ2, σ6 = σ
-		
-		FI = (F1*σ1+F2*σ2)+(F11*σ1^2+F22*σ2^2+F66*σ6^2)+2*F12*σ1*σ2
-		
-		push!(crit, FI)
-	end
-	
-	crit
-end
+include("strain_stress.jl")
+include("failure_criterias.jl")
 
 function Tσ(θ::Real)
 	θ = θ * π / 180
@@ -272,7 +173,5 @@ function Tϵ(θ::Real)
 	  n^2   m^2   -m*n
 	-2*m*n 2*m*n m^2-n^2]
 end
-
-
 
 end # module
