@@ -16,6 +16,8 @@ struct OrthotropicMaterial
 	OrthotropicMaterial(E1, E2, nu12, G12, Xt, Yt, Xc, Yc, S12) = new(E1, E2, nu12, G12, Xt, Yt, Xc, Yc, S12)
 end
 
+Base.show(io::IO, mat::OrthotropicMaterial) = print(io, "E1=$(mat.E1),E2=$(mat.E2),ν12=$(mat.ν12),G12=$(mat.G12)")
+
 function Q12(mat::OrthotropicMaterial)
 	Q11 = mat.E1^2/(mat.E1-mat.ν12^2*mat.E2)
 	Q12 = mat.ν12*mat.E1*mat.E2/(mat.E1-mat.ν12^2*mat.E2)

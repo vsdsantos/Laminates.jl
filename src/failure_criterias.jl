@@ -1,5 +1,5 @@
 
-function max_tensions_criteria(lam::Laminate, load)
+function max_tensions_criteria(lam::Laminate, load::AbstractVector{<:Real})
 	tensions = local_tensions(lam, load)
 	
 	crit = []
@@ -13,12 +13,12 @@ function max_tensions_criteria(lam::Laminate, load)
 	crit
 end
 
-function max_strain_criteria(lam::Laminate, load)
+function max_strain_criteria(lam::Laminate, load::AbstractVector{<:Real})
 	strain = local_deformations(lam, load)
 	
 	crit = []
 	
-	for i in 1:length(lam.sheets)
+	for i in 1:length(lam)
 		m = lam.sheets[i].material
 		ϵ = strain[i]
 		push!(crit, [-m.Xc < ϵ[1] < m.Xt, -m.Yc < ϵ[2] < m.Yt, abs(ϵ[3]) < m.S12])
@@ -27,12 +27,12 @@ function max_strain_criteria(lam::Laminate, load)
 	crit
 end
 
-function tsai_hill_criteria(lam::Laminate, load)
+function tsai_hill_criteria(lam::Laminate, load::AbstractVector{<:Real})
 	tensions = local_tensions(lam, load)
 	
 	crit = []
 	
-	for i in 1:length(lam.sheets)
+	for i in 1:length(lam)
 		m = lam.sheets[i].material
 		σ = tensions[i]
 		σ1, σ2, σ3 = σ
@@ -51,14 +51,18 @@ function tsai_hill_criteria(lam::Laminate, load)
 	crit
 end
 
-function tsai_wu_criteria(lam::Laminate, load)
+function tsai_wu_criteria(lam::Laminate, load::AbstractVector{<:Real})
 	tensions = local_tensions(lam, load)
 	
 	crit = []
 	
-	for i in 1:length(lam.sheets)
+	for i in 1:length(lam)
 		m = lam.sheets[i].material
 		
+		if m.Xt == undef || m.Yt == undef || m.Xc == undef || m.Yc == undef || m.S12 == undef
+			error("Some Material properties are undefined.")
+		end
+
 		F1 = 1/m.Xt - 1/m.Xc
 		F2 = 1/m.Yt - 1/m.Yc
 		F11 = 1 / (m.Xt * m.Xc)

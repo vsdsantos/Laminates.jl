@@ -1,10 +1,10 @@
 
-function global_deformations(lam::Laminate, load)
+function global_deformations(lam::Laminate, load::AbstractVector{<:Real})
 	deform = ABD(lam) \ load
 	deform[1:3], deform[4:6]
 end
 
-function global_deformations_per_sheet(lam::Laminate, load)
+function global_deformations_per_sheet(lam::Laminate, load::AbstractVector{<:Real})
 	ϵ, κ = global_deformations(lam, load)
 	t_k = t_pos(lam)
 	deforms = []
@@ -15,7 +15,7 @@ function global_deformations_per_sheet(lam::Laminate, load)
 	deforms
 end
 
-function global_tensions_per_sheet(lam::Laminate, load)
+function global_tensions_per_sheet(lam::Laminate, load::AbstractVector{<:Real})
 	g_deforms = global_deformations_per_sheet(lam, load)
 	
 	tensions = []
@@ -28,7 +28,7 @@ function global_tensions_per_sheet(lam::Laminate, load)
 	tensions
 end
 
-function local_deformations(lam::Laminate, load)
+function local_deformations(lam::Laminate, load::AbstractVector{<:Real})
 	g_deforms = global_deformations_per_sheet(lam, load)
 	
 	deforms = []
@@ -42,7 +42,7 @@ function local_deformations(lam::Laminate, load)
 	deforms
 end
 
-function local_tensions(lam::Laminate, load)
+function local_tensions(lam::Laminate, load::AbstractVector{<:Real})
 	g_tensions = global_tensions_per_sheet(lam, load)
 	
 	tensions = []

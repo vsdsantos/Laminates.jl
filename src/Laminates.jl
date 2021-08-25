@@ -1,7 +1,5 @@
 module Laminates
 
-import Base: length
-
 include("materials.jl")
 include("sheet.jl")
 
@@ -11,13 +9,13 @@ end
 
 function symetry_operations(vec::AbstractVector, sym::Symbol)
 	if sym == :S
-		return vcat(vec, reverse(vec))
+		return vcat(vec, reverse(deepcopy(vec)))
 	elseif sym == :SM
-		return vcat(vec[1:end-1], [vec[end]], reverse(vec[1:end-1]))
+		return vcat(vec, reverse(deepcopy(vec[1:end-1])))
 	elseif sym == :AS
-		return vcat(vec, vec)
+		return vcat(vec, deepcopy(vec))
 	elseif sym == :ASM
-		return vcat(vec[1:end-1], [vec[end]], vec[1:end-1])
+		return vcat(vec[1:end], deepcopy(vec[1:end-1]))
 	else
 		return vec
 	end
@@ -68,25 +66,31 @@ function angle_ply(θ::Real, N::Integer, t::Real,  mat::OrthotropicMaterial)::La
 end
 
 function cross_ply(N::Integer, t::Real,  mat::OrthotropicMaterial)::Laminate
-	if N % 2 != 0
-		sym = :SM
-	else
-		sym = :S
-	end
+	
 	thetas = Vector{Real}()
-	for i in 1:(N÷2)
+	for i in 1:(Int64(ceil(N/2)))
 		if i % 2 == 0
 			push!(thetas, 90)
 		else
 			push!(thetas, 0)
 		end
 	end
-	Laminate(thetas, t, mat, sym=sym)
+
+	if N % 2 != 0
+		return Laminate(thetas, t, mat, sym=:SM)
+	else
+		return Laminate(thetas, t, mat, sym=:S)
+	end
 end
 
 thickness(lam::Laminate) = sum([sh.t_i for sh in lam.sheets])
 
-length(lam::Laminate) = length(lam.sheets)
+Base.length(lam::Laminate) = Base.length(lam.sheets)
+
+function Base.show(io::IO, lam::Laminate) 
+	results = [(l.θ_i, l.t_i) for l in lam.sheets]
+	print(io, "(θ,t)=$(results)")
+end
 
 function t_pos(lam::Laminate)
 	t = thickness(lam)
