@@ -45,7 +45,7 @@ function tsai_hill_criteria(lam::Laminate, load::AbstractVector{<:Real})
             FI = (σ1 / m.Xc)^2 + (σ1 / m.Xc) * (σ2 / m.Xc) + (σ2 / m.Yt)^2 + (σ3 / m.S12)^2
         elseif σ1 > 0 && σ2 < 0
             FI = (σ1 / m.Xt)^2 + (σ1 / m.Xt) * (σ2 / m.Xt) + (σ2 / m.Yc)^2 + (σ3 / m.S12)^2
-        else # σ1 < 0 && σ2 < 0
+        else # σ1 <= 0 && σ2 <= 0 (or both zero)
             FI = (σ1 / m.Xc)^2 - (σ1 / m.Xc) * (σ2 / m.Xc) + (σ2 / m.Yc)^2 + (σ3 / m.S12)^2
         end
         push!(crit, FI)
