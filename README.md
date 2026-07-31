@@ -1,6 +1,22 @@
 # Laminates.jl
 Tools for modeling composite laminates.
 
+## Installation
+
+Until this package is registered in General:
+
+```julia
+using Pkg
+Pkg.add(url = "https://github.com/vsdsantos/Laminates.jl")
+```
+
+After registration:
+
+```julia
+using Pkg
+Pkg.add("Laminates")
+```
+
 ## Using
 
 ```julia
@@ -32,3 +48,10 @@ tsai_wu_criteria(lam, [100,100,10,0,0,0])
  9.892961286870392
  6.495762834897818
 ```
+
+## Release automation
+
+This repository includes:
+
+- `TagBot.yml` to create tags/releases when a registry release is merged.
+- `CompatHelper.yml` to open compatibility update pull requests.
