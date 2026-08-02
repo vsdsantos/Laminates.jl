@@ -14,6 +14,12 @@ function max_tensions_criteria(lam::Laminate, load::AbstractVector{<:Real})
     return crit
 end
 
+# max_strain_criteria: consumes local engineering strains [ε1, ε2, γ12] returned by
+# local_deformations (third component is engineering shear strain γ12 = 2ε12).
+# Allowable strains are derived from stress allowables and elastic constants:
+#   ε1t = Xt/E1,  ε1c = Xc/E1
+#   ε2t = Yt/E2,  ε2c = Yc/E2
+#   γ12_allow = S12/G12
 function max_strain_criteria(lam::Laminate, load::AbstractVector{<:Real})
     strain = local_deformations(lam, load)
 
@@ -23,7 +29,12 @@ function max_strain_criteria(lam::Laminate, load::AbstractVector{<:Real})
         m = lam.sheets[i].material
         check_material_failure_prop(m)
         ϵ = strain[i]
-        push!(crit, [-m.Xc < ϵ[1] < m.Xt, -m.Yc < ϵ[2] < m.Yt, abs(ϵ[3]) < m.S12])
+        ε1t = m.Xt / m.E1
+        ε1c = m.Xc / m.E1
+        ε2t = m.Yt / m.E2
+        ε2c = m.Yc / m.E2
+        γ12_allow = m.S12 / m.G12
+        push!(crit, [-ε1c < ϵ[1] < ε1t, -ε2c < ϵ[2] < ε2t, abs(ϵ[3]) < γ12_allow])
     end
 
     return crit
