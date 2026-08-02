@@ -29,6 +29,19 @@ function max_strain_criteria(lam::Laminate, load::AbstractVector{<:Real})
     return crit
 end
 
+"""
+    tsai_hill_criteria(lam::Laminate, load::AbstractVector{<:Real})
+
+Compute the Tsai–Hill failure index for each ply using local ply stresses
+`(σ1, σ2, τ12)` and sign-dependent allowables:
+
+`FI = (σ1/X)^2 - σ1σ2/(X*Y) + (σ2/Y)^2 + (τ12/S12)^2`
+
+where `X = Xt` for `σ1 ≥ 0` and `X = Xc` for `σ1 < 0`, while
+`Y = Yt` for `σ2 ≥ 0` and `Y = Yc` for `σ2 < 0`.
+This applies the same equation in all four `(σ1, σ2)` sign quadrants,
+with tensile/compressive allowables selected by stress sign.
+"""
 function tsai_hill_criteria(lam::Laminate, load::AbstractVector{<:Real})
     tensions = local_tensions(lam, load)
 
@@ -39,15 +52,9 @@ function tsai_hill_criteria(lam::Laminate, load::AbstractVector{<:Real})
         check_material_failure_prop(m)
         σ = tensions[i]
         σ1, σ2, σ3 = σ
-        if σ1 > 0 && σ2 > 0
-            FI = (σ1 / m.Xt)^2 - (σ1 / m.Xt) * (σ2 / m.Xt) + (σ2 / m.Yt)^2 + (σ3 / m.S12)^2
-        elseif σ1 < 0 && σ2 > 0
-            FI = (σ1 / m.Xc)^2 + (σ1 / m.Xc) * (σ2 / m.Xc) + (σ2 / m.Yt)^2 + (σ3 / m.S12)^2
-        elseif σ1 > 0 && σ2 < 0
-            FI = (σ1 / m.Xt)^2 + (σ1 / m.Xt) * (σ2 / m.Xt) + (σ2 / m.Yc)^2 + (σ3 / m.S12)^2
-        else # σ1 <= 0 && σ2 <= 0 (or both zero)
-            FI = (σ1 / m.Xc)^2 - (σ1 / m.Xc) * (σ2 / m.Xc) + (σ2 / m.Yc)^2 + (σ3 / m.S12)^2
-        end
+        X = σ1 < 0 ? m.Xc : m.Xt
+        Y = σ2 < 0 ? m.Yc : m.Yt
+        FI = (σ1 / X)^2 - (σ1 * σ2) / (X * Y) + (σ2 / Y)^2 + (σ3 / m.S12)^2
         push!(crit, FI)
     end
 
